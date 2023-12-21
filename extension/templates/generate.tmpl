@@ -1,0 +1,4 @@
+
+//go:generate tfplugingen-openapi generate --config ./generator_config.yaml --output ../provider-spec.json $HOME/personal/launchpad-core/ent/openapi.json
+//go:generate tfplugingen-framework generate all --input ../provider-spec.json --output ../internal/provider
+//go:generate oapi-codegen -config oapi.yaml $HOME/personal/launchpad-core/ent/openapi.json

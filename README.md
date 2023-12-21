@@ -49,7 +49,7 @@ go mod init github.com/example/repo
 cat << 'EOF' > generate/generate.go
 package generate
 
-//go:generate go run /Users/tposse/personal/terraform-provider-oas-codegen/cmd/tfprovider-oas-gen generate
+//go:generate go run github.com/tiagoposse/terraform-provider-oas-codegen/cmd/tfprovider-oas-gen generate
 'EOF'
 
 ```

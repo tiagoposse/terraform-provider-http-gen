@@ -1,0 +1,190 @@
+{{ define "entform/resource" }}{{/* gotype: entgo.io/ent/entc/gen.Type */}}
+package {{ .PackageName }}
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+
+	{{ .Clients | quote }}
+)
+
+// Ensure provider defined types fully satisfy framework interfaces.
+var _ resource.Resource = &{{ .Name }}Resource{}
+var _ resource.ResourceWithImportState = &{{ .Name }}Resource{}
+
+func New{{ .Name }}Resource() resource.Resource {
+	return &{{ .Name }}Resource{}
+}
+
+// {{ .Name }}Resource defines the resource implementation.
+type {{ .Name }}Resource struct {
+	client *clients.ClientWithResponses
+}
+
+func (r *{{ .Name }}Resource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_{{ .Name }}"
+}
+
+func (r *{{ .Name }}Resource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = {{ .Name }}ResourceSchema(ctx)
+}
+
+func (r *{{ .Name }}Resource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	// Prevent panic if the provider has not been configured.
+	if req.ProviderData == nil {
+		return
+	}
+
+	client, ok := req.ProviderData.(*clients.ClientWithResponses)
+
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Resource Configure Type",
+			fmt.Sprintf("Expected *clients.ClientWithResponses, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+
+		return
+	}
+
+	r.client = client
+}
+
+func (r *{{ .Name }}Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var data {{ .Name }}Model
+
+	// Read Terraform plan data into the model
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	body := clients.Create{{ .Name }}JSONRequestBody{}
+	js, err := json.Marshal(data)
+	if err != nil {
+	    resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create {{ .Name }}, got error: %s", err))
+	    return
+	}
+
+	if err := json.Unmarshal(js, &body); err != nil {
+	    resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create {{ .Name }}, got error: %s", err))
+	    return
+	}
+
+	clientResp, err := r.client.Create{{ .Name }}WithResponse(ctx, body)
+	if err != nil {
+	    resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create {{ .Name }}, got error: %s", err))
+	    return
+	}
+
+	if clientResp.StatusCode() != http.StatusOK {
+		resp.Diagnostics.AddError("Server Error", fmt.Sprintf("Unable to create {{ .Name }}, got status: %d", clientResp.StatusCode()))
+	    return
+	}
+
+	// For the purposes of this {{ .Name }} code, hardcoding a response value to
+	// save into the Terraform state.
+	data.Id = types.StringValue(clientResp.JSON200.Id)
+
+	tflog.Trace(ctx, "created a resource")
+
+	// Save data into Terraform state
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+func (r *{{ .Name }}Resource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var data {{ .Name }}Model
+
+	// Read Terraform prior state data into the model
+	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	
+	clientResp, err := r.client.Read{{ .Name }}WithResponse(ctx, data.Id.String())
+	if err != nil {
+	    resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read {{ .Name }}, got error: %s", err))
+	    return
+	}
+
+	if clientResp.StatusCode() != http.StatusOK {
+		resp.Diagnostics.AddError("Server Error", fmt.Sprintf("Unable to create {{ .Name }}, got status: %d", clientResp.StatusCode()))
+	    return
+	}
+
+	// Save updated data into Terraform state
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+func (r *{{ .Name }}Resource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var data {{ .Name }}Model
+
+	// Read Terraform plan data into the model
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+
+	body := clients.Update{{ .Name }}JSONRequestBody{}
+	js, err := json.Marshal(data)
+	if err != nil {
+	    resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update {{ .Name }}, got error: %s", err))
+	    return
+	}
+
+	if err := json.Unmarshal(js, &body); err != nil {
+	    resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update {{ .Name }}, got error: %s", err))
+	    return
+	}
+
+	clientResp, err := r.client.Update{{ .Name }}WithResponse(ctx, data.Id.String(), body)
+	if err != nil {
+	    resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create {{ .Name }}, got error: %s", err))
+	    return
+	}
+
+	if clientResp.StatusCode() != http.StatusOK {
+		resp.Diagnostics.AddError("Server Error", fmt.Sprintf("Unable to update {{ .Name }}, got status: %d", clientResp.StatusCode()))
+	    return
+	}
+
+	// Save updated data into Terraform state
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+func (r *{{ .Name }}Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var data {{ .Name }}Model
+
+	// Read Terraform prior state data into the model
+	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	clientResp, err := r.client.Delete{{ .Name }}WithResponse(ctx, data.Id.String())
+	if err != nil {
+	    resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete {{ .Name }}, got error: %s", err))
+	    return
+	}
+
+	if clientResp.StatusCode() != http.StatusOK {
+		resp.Diagnostics.AddError("Server Error", fmt.Sprintf("Unable to delete {{ .Name }}, got status: %d", clientResp.StatusCode()))
+	    return
+	}
+}
+
+func (r *{{ .Name }}Resource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+{{- end }}
